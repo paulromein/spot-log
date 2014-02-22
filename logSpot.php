@@ -1,36 +1,11 @@
 <?php date_default_timezone_set('America/Vancouver'); // Set default timezone for script
 
-/*********************
-NOTE: You will need to setup the database table before running this script, and I would like
-to include code to help make it, but I don't have time right now. Here's the columns for
-the databse, in order:
+/*****************************************************************************************
+NOTE: You will need to make a public page through the spot dashboard, and then view the
+source to get the message API url needed a few lines down.
 
-	id
-	idFromSpot
-	messengerId
-	messengerName
-	unixTime
-	messageType
-	latitude
-	longitude
-	modelId
-	showCustomMsg
-	dateTime
-	batteryState
-	hidden
-	dateCreated
+More Information about feeds: http://faq.findmespot.com/index.php?action=showEntry&data=69
 
-You will need to make a public page through the spot dashboard, and then view the source
-to get the message API url needed a few lines down.
-
-********************/
-
-
-
-
-
-
-/******************************************************************************************
 To capture all tracking data, this script needs to be run at verying minimum frequencies,
 depending on the device's tracking speed.  Consult the chart below for tracking rates, and
 the corresponding minimum intervals this script needs to be run. (Tracking Interval x 50)
@@ -40,7 +15,12 @@ the corresponding minimum intervals this script needs to be run. (Tracking Inter
 	10 min		8.33 hours
 	30 min		25.0 hours
 	60 min		50.0 hours
-	
+
+I suggest setting up this code to run on a cron tab at one of the frequencies seen above.
+
+OTHER DEVE NOTES:
+ - If you don't log for 7 days and the feed returns empty, I'm not sure how this script
+   will respond.
 ******************************************************************************************/
 
 /***************************
@@ -73,6 +53,26 @@ die ('Could not connect to MySQL: ' . mysql_error() );
 mysql_select_db (DB_NAME) OR
 die ('Could not select the database: ' . mysql_error() );
 
+// If this is the first time running, then create the table in the database
+$sql = "CREATE TABLE IF NOT EXISTS `$db_table` (
+  `id` int(10) NOT NULL AUTO_INCREMENT,
+  `idFromSpot` int(15) NOT NULL,
+  `messengerId` varchar(50) NOT NULL,
+  `messengerName` varchar(100) NOT NULL,
+  `unixTime` int(12) NOT NULL,
+  `messageType` varchar(25) NOT NULL,
+  `latitude` varchar(25) NOT NULL,
+  `longitude` varchar(25) NOT NULL,
+  `modelId` varchar(25) NOT NULL,
+  `showCustomMsg` varchar(25) NOT NULL,
+  `dateTime` varchar(100) NOT NULL,
+  `batteryState` varchar(25) NOT NULL,
+  `hidden` varchar(25) NOT NULL,
+  `dateCreated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM  DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;";
+if (!mysql_query($sql)) die("Could not create table in databse: ".mysql_error());
+
 // Get the most recent entry in our database for this spot device
 $result = mysql_query("SELECT * FROM $db_table WHERE messengerId = '".$spotLogs[0]['messengerId']."' ORDER BY dateCreated DESC LIMIT 1");
 $row = mysql_fetch_array($result, MYSQL_ASSOC);
@@ -87,7 +87,7 @@ $spotLogs = array_reverse($spotLogs);  // Flip the array to log oldest first
 foreach ($spotLogs as $spot){
 	
 	// Only log if it's a new data point
-	if ($spot['unixTime'] > $row['unixTime'] && $spot['idFromSpot'] != $row['id']){
+	if (empty($row) || ( $spot['unixTime'] > $row['unixTime'] && $spot['idFromSpot'] != $row['id'] ) ){
 		array_shift($spot); // Drop the "clientUnixTime" in the array
 		$values[] = "('".implode("','",$spot)."')"; // Save the values from this row
 	}
